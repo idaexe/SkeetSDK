@@ -19,6 +19,7 @@ using namespace SkeetSDK;
 
 DWORD WINAPI MainThread(LPVOID lpParam)
 {
+    InitAndWaitForSkeet();
     UnSetVisibles();
     LoadConfig();
     SetMenuKey(VK_INSERT);
@@ -42,7 +43,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 //----------------------------------------------------------------------------------------------------------//
 static void UnSetVisibles()
 {
-    Utils::ForEach(UI::GetChild(Misc, 2), [](PElement element) {
+    Utils::ForEach(UI::GetChild(MISC, 2), [](PElement element) {
         UI::SetVisible(element, true);
         });
 }
@@ -54,7 +55,7 @@ static void LoadConfig()
 
 static void SetMenuKey(int KEY)
 {
-    UI::SetHotkey(UI::GetElement<Hotkey>(UI::GetChild(Misc, 2), 1), KEY);
+    UI::SetHotkey(UI::GetElement<Hotkey>(UI::GetChild(MISC, 2), 1), KEY);
 }
 
 static void PrintAllLuas()

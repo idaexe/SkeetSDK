@@ -11,6 +11,8 @@
 #define FORCECALL __declspec(noinline)
 #endif
 
+#define LUALOADED_FLAG 1 << 15
+
 // Only use if you know what you are doing, incorrect usage of raw functions can cause undefined behavior
 #ifdef _SDK_PUBLIC_UNSAFE_MEMBERS
 #define MEMBERS_PRIVATE public:
@@ -45,9 +47,9 @@ namespace SkeetSDK {
 	// Memory signatures
 	typedef void* (__thiscall* AllocatorFn)(int);
 	// Misc signatures
-	typedef bool(__fastcall* LoadLuaFn)(wchar_t*, void*);
+	typedef bool(__thiscall* LoadLuaFn)(const wchar_t*);
 	typedef unsigned int(__fastcall* HashFn)(const wchar_t*);
-	typedef void* (__fastcall* CryptFn)(wchar_t*, size_t, int);
+	typedef void* (__fastcall* CryptFn)(const wchar_t*, size_t, int);
 	typedef int(__fastcall* DecryptFn)(void*, int, wchar_t*, int);
 	typedef bool(__fastcall* GetConfigDataFn)(const char*, void*);
 	typedef void(__fastcall* LoadConfigFn)(void*, void*, size_t);
@@ -57,19 +59,19 @@ namespace SkeetSDK {
 	typedef void(__fastcall* SetCheckFn)(void*, int, int);
 	typedef void(__fastcall* HideUiFn)(void*, void*, bool);
 	typedef void(__thiscall* InsertFn)(void*, bool, void*);
-	typedef void* (__thiscall* AddLabelFn)(void*, bool, wchar_t*);
-	typedef void* (__thiscall* AddButtonFn)(void*, void*, wchar_t*, void*, void*);
+	typedef void* (__thiscall* AddLabelFn)(void*, bool, const wchar_t*);
+	typedef void* (__thiscall* AddButtonFn)(void*, void*, const wchar_t*, void*, void*);
 	typedef void* (__thiscall* TBConFn)(void*, void*); // Textbox constructor
 	typedef void* (__thiscall* CPConFn)(void*, void*, void*); // ColorPicker constructor
-	typedef void* (__thiscall* LConFn)(void*, void*, wchar_t*); // Label constructor
-	typedef void* (__thiscall* TCConFn)(void*, void*, wchar_t*, int*); // Tab and Checkbox constructor
-	typedef void* (__thiscall* SConFn)(void*, void*, wchar_t*, int, int, int*, bool, unsigned int, float); // Slider constructor
+	typedef void* (__thiscall* LConFn)(void*, void*, const wchar_t*); // Label constructor
+	typedef void* (__thiscall* TCConFn)(void*, void*, const wchar_t*, int*); // Tab and Checkbox constructor
+	typedef void* (__thiscall* SConFn)(void*, void*, const wchar_t*, int, int, int*, bool, unsigned int, float); // Slider constructor
 	typedef void* (__thiscall* HKConFn)(void*, void*, void*, bool); // Hotkey constructor
-	typedef void* (__thiscall* BConFn)(void*, void*, wchar_t*, int, void*, void*, int); // Button constructor
-	typedef void* (__thiscall* CBConFn)(void*, void*, wchar_t*, int*, bool); // Combobox constructor
-	typedef void* (__thiscall* MConFn)(void*, void*, wchar_t*, int*, int, bool); // Multiselect constructor
-	typedef void* (__thiscall* LBConFn)(void*, void*, wchar_t*, int, int, int*, bool); // Listbox constructor
-	typedef void* (__thiscall* CHConFn)(void*, void*, wchar_t*, int, int, bool); // Child constructor
+	typedef void* (__thiscall* BConFn)(void*, void*, const wchar_t*, int, void*, void*, int); // Button constructor
+	typedef void* (__thiscall* CBConFn)(void*, void*, const wchar_t*, int*, bool); // Combobox constructor
+	typedef void* (__thiscall* MConFn)(void*, void*, const wchar_t*, int*, int, bool); // Multiselect constructor
+	typedef void* (__thiscall* LBConFn)(void*, void*, const wchar_t*, int, int, int*, bool); // Listbox constructor
+	typedef void* (__thiscall* CHConFn)(void*, void*, const wchar_t*, int, int, bool); // Child constructor
 	typedef size_t(__thiscall* GetTBoxTextFn)(void*, wchar_t*);
 	// Renderer signatures
 	typedef void(__fastcall* RenderFn)(void*, void*);
@@ -163,7 +165,7 @@ namespace SkeetSDK {
 		Toggle,
 		OffHotkey
 	};
-#ifdef SDK_RENDERER_IMP
+
 	enum TextureType
 	{
 		TEXTURE_RGBA = -1,
@@ -178,7 +180,6 @@ namespace SkeetSDK {
 		REVENT_MENU,
 		REVENT_FINAL
 	};
-#endif
 
 //vectors
 	struct Vec2f_t
@@ -565,7 +566,7 @@ namespace SkeetSDK {
 		bool Hovered;
 		bool AllowMouseInput;
 		bool SameLine;
-	} ;
+	};
 
 	typedef struct XorW
 	{
@@ -689,12 +690,13 @@ namespace SkeetSDK {
 		int	len;
 	} wchar_str;
 
-	struct wchar_set
+	struct ListBoxVar
 	{
-		size_t			Index;
-		skeetvec<wchar_t> Name;
-		char			pad2[0x4];
-		wchar_set(size_t Index, skeetvec<wchar_t> Name) : Index(Index), Name(Name) {};
+		short				Index;
+		short				Flags; // 0x8000 if lua loaded
+		skeetvec<wchar_t>	Name;
+		char				pad2[0x4];
+		ListBoxVar(size_t Index, skeetvec<wchar_t> Name) : Index(Index), Name(Name) {};
 	};
 
 	typedef struct HotkeyPopup : IElement
@@ -847,10 +849,7 @@ namespace SkeetSDK {
 		char				pad1[0x4];
 		int					SelectedItem;	// 0x88
 		char				pad2[0x4];
-		skeetvec<wchar_set>	Items;
-		//wchar_set*  ItemsChunk;		// 0x90
-		//wchar_set*  ItemsChunkEnd;	// 0x94
-		//wchar_set*  ItemsCapacity;	// 0x98
+		skeetvec<ListBoxVar>Items;			// 0x90
 		char				pad3[0x4];
 	} ListInfo, *PListInfo;
 
@@ -882,7 +881,7 @@ namespace SkeetSDK {
 		int					SearchPresent;		// 0x7C
 		int					DisplayedCount;		// 0x80
 		ListboxInfo			Info;				// 0x84
-		skeetvec<wchar_t>		Search;				// 0xA0
+		skeetvec<wchar_t>	Search;				// 0xA0
 		char				pad7[0x4];
 		skeetvec<short>		SSpecs;				// 0xB0
 		char				pad8[0x4];
@@ -1005,17 +1004,17 @@ namespace SkeetSDK {
 	struct CTab : public ITab
 	{
 		Header<void>		Header;
-		Vec2				Pos;			// 0x20
-		Vec2				Size;			// 0x28
-		Vec2				DefSize;		// 0x30
-		PXorW				CryptedName;	// 0x38
+		Vec2				Pos;				// 0x20
+		Vec2				Size;				// 0x28
+		Vec2				DefSize;			// 0x30
+		PXorW				CryptedName;		// 0x38
 		char				pad1[0x14];
-		VecCol				Color;			// 0x50
+		VecCol				Color;				// 0x50
 		char				pad2[0xC];
-		PCMenu				Menu;			// 0x60
+		PCMenu				Menu;				// 0x60
 		char				pad3[0xC];
-		skeetvec<PChild>	Childs;			// 0x70
-		TabIcon				Icon;				// 0x78
+		skeetvec<PChild>	Childs;				// 0x70
+		TabIcon				Icon;				// 0x7C
 		int					Padding;			// 0x94
 		void*				Chunk;				// 0x98
 		void*				ChunkEnd;			// 0x9C
@@ -1026,7 +1025,8 @@ namespace SkeetSDK {
 	//0x20 Struct for lua listbox chunk in Config tab
 	typedef struct
 	{
-		char				pad1[0x8];
+		uint32_t			TimeStamp;	// 0x0 TimeStamp of last modification
+		char				pad1[0x4];
 		int					OnStartup;	// 0x8
 		skeetvec<wchar_t>	Name;		// 0xC
 		char				pad2[0x8];
@@ -1098,11 +1098,11 @@ namespace SkeetSDK {
 		virtual void __fastcall PolyCircle(void* points, size_t count) = 0;
 		virtual void fn14() = 0;
 	public:
-		virtual void __fastcall Text(int flags, int x, int y, int color, size_t maxlen, wchar_t* text, size_t len) = 0;
+		virtual void __fastcall Text(int flags, int x, int y, int color, size_t maxlen, const wchar_t* text, size_t len) = 0;
 	private:
 		virtual void fn16() = 0;
 	public:
-		virtual void __fastcall MeasureText(int* out, wchar_t* text, size_t len, int flags) = 0;
+		virtual void __fastcall MeasureText(int* out, const wchar_t* text, size_t len, int flags) = 0;
 		virtual void __fastcall ScreenSize(int* w, int* h) = 0;
 		virtual int __fastcall AddTexture(unsigned char* data, int w, int h, size_t bytesize, int i0, int i1) = 0;
 	private:
@@ -1149,7 +1149,7 @@ namespace SkeetSDK {
 //SDK Classes
 	class Utils final
 	{
-		friend void __stdcall InitAndWaitForSkeet();
+		friend void InitAndWaitForSkeet();
 		friend class UI;
 	MEMBERS_PRIVATE
 		static GetConfigDataFn	GetConfigData;
@@ -1158,6 +1158,8 @@ namespace SkeetSDK {
 		static CFn				GetState;
 		static PCLuas			LuaInfo;
 		static LoadLuaFn		LoadLua;
+		static LoadLuaFn		AfterLoad;
+		static ThisFn			AfterTab;
 		static DecryptFn		Decrypt;
 		static CryptFn			Crypt;
 		static ThisFn			InitTab;
@@ -1169,11 +1171,11 @@ namespace SkeetSDK {
 		static int			LuaCount();
 		static wchar_t*		LuaName(int index);
 		static bool			LoadScript(int index);
-		static bool			LoadScript(wchar_t* name);
+		static bool			LoadScript(const wchar_t* name);
 		static void			AllowUnsafe(int value);
 		static void			LoadCfg(int index = -1);
 		static void			LoadCfg(const char* cfgname);
-		static PXorW		CryptName(wchar_t* name);
+		static PXorW		CryptName(const wchar_t* name);
 		static void*		LuaState();
 		static void*		GetLuaState();
 		static void			ForEach(PChild child, void(*func)(PElement), UiType T = UiNone);
@@ -1187,7 +1189,7 @@ namespace SkeetSDK {
 
 	class UI final
 	{
-		friend void __stdcall InitAndWaitForSkeet();
+		friend void InitAndWaitForSkeet();
 	MEMBERS_PRIVATE
 		static ThisIntFn		TabSwitch;
 		static ThisIntFn		SetList;
@@ -1236,25 +1238,25 @@ namespace SkeetSDK {
 		static void			SetHotkey(PHotkey hotkey, int key, HotkeyMode mode = Inherit);
 		static int			ExtractKey(PHotkey hotkey);
 		static int			HotkeyState(PHotkey hotkey);
-		static void			RenameElement(PElement element, wchar_t* name, PXorW oldname);
+		static void			RenameElement(PElement element, const wchar_t* name, PXorW oldname);
 		static wchar_t*		GetName(PElement element);
 		static size_t		GetTextbotText(PTextbox tbox, wchar_t* buffer);
 		static void			InsertElement(PChild child, void* element);
-		static PLabel		CreateLabel(PChild child, wchar_t* name);
-		static PTextbox		CreateTextbox(PChild child, bool sameline = true, wchar_t* name = NULL);
-		static PCheckbox	CreateCheckbox(PChild child, wchar_t* name, int* value);
-		static PSlider		CreateSlider(PChild child, wchar_t* name, int min, int max, int* value, bool tooltip = true, wchar_t* tip = NULL, float step = 1.f);
-		static PHotkey		CreateHotkey(PChild child, wchar_t* name, bool sameline = false, int vkey = 0x00, HotkeyMode mode = OnHotkey);
-		static PButton		CreateButton(PChild child, wchar_t* name, F2PFn function, void* ecx = Menu);
+		static PLabel		CreateLabel(PChild child, const wchar_t* name);
+		static PTextbox		CreateTextbox(PChild child, bool sameline = true, const wchar_t* name = NULL);
+		static PCheckbox	CreateCheckbox(PChild child, const wchar_t* name, int* value);
+		static PSlider		CreateSlider(PChild child, const wchar_t* name, int min, int max, int* value, bool tooltip = true, wchar_t* tip = NULL, float step = 1.f);
+		static PHotkey		CreateHotkey(PChild child, const wchar_t* name, bool sameline = false, int vkey = 0x00, HotkeyMode mode = OnHotkey);
+		static PButton		CreateButton(PChild child, const wchar_t* name, F2PFn function, void* ecx = Menu);
 		static PCPicker		CreateColorPicker(PChild child, VecCol* value, bool sameline = true, wchar_t* name = NULL);
-		static PCombobox	CreateCombobox(PChild child, wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool sameline = false);
-		static PMultiselect CreateMultiselect(PChild child, wchar_t* name, int* value, char** arr, size_t arrsize, bool sameline = false);
-		static PListbox		CreateListbox(PChild child, wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool searchbox = true);
-		static void			AddListboxVar(PListbox list, wchar_t* elem, size_t bsize = 0);
+		static PCombobox	CreateCombobox(PChild child, const wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool sameline = false);
+		static PMultiselect CreateMultiselect(PChild child, const wchar_t* name, int* value, char** arr, size_t arrsize, bool sameline = false);
+		static PListbox		CreateListbox(PChild child, const wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool searchbox = true);
+		static void			AddListboxVar(PListbox list, const wchar_t* elem, size_t bsize = 0);
 		static void			RemoveListboxVar(PListbox list, size_t index);
 		static void			InsertChild(PCTab tab, void* child);
-		static PChild		CreateChild(PCTab tab, wchar_t* name, Vec4_8t possize, bool modify);
-		static PCTab		CreateTab(wchar_t* name, Vec2 pos);
+		static PChild		CreateChild(PCTab tab, const wchar_t* name, Vec4_8t possize, bool modify);
+		static PCTab		CreateTab(const wchar_t* name, Vec2 pos);
 
 		static FORCECALL PElement		GetByName(PChild child, const wchar_t* name);
 		static FORCECALL PChild			GetChild(Tab tab, size_t index);
@@ -1310,9 +1312,9 @@ namespace SkeetSDK {
 		static Vec2 ScreenSize();
 		static int ScreenWidth();
 		static int ScreenHeigth();
-		static Vec2 MeasureText(wchar_t* text, unsigned int flags);
+		static Vec2 MeasureText(const wchar_t* text, unsigned int flags);
 		static void ToScreen(Vec3f_t pos, int* x, int* y);
-		static void Text(Vec2 pos, VecCol color, wchar_t* text, int flags, unsigned int maxlen = 0);
+		static void Text(Vec2 pos, VecCol color, const wchar_t* text, int flags, unsigned int maxlen = 0);
 		static void Line(Vec2 p1, Vec2 p2, VecCol color);
 		static void Rect(Vec2 pos, Vec2 size, VecCol color);
 		static void RectOut(Vec2 pos, Vec2 size, VecCol color, int thickness);
@@ -1342,7 +1344,7 @@ namespace SkeetSDK {
 
 	class CEngine final
 	{
-		friend void __stdcall InitAndWaitForSkeet();
+		friend void InitAndWaitForSkeet();
 		friend class Globals;
 		friend class Client;
 		static void**** EngineCtx;
@@ -1370,7 +1372,7 @@ namespace SkeetSDK {
 
 	class Globals final
 	{
-		friend void __stdcall InitAndWaitForSkeet();
+		friend void InitAndWaitForSkeet();
 	MEMBERS_PRIVATE
 		static GlobalsInfo** GlobalsCtx;
 	MEMBERS_PUBLIC
@@ -1391,7 +1393,7 @@ namespace SkeetSDK {
 
 	class Client final
 	{
-		friend void __stdcall InitAndWaitForSkeet();
+		friend void InitAndWaitForSkeet();
 	MEMBERS_PRIVATE
 		static LogFn Logger;
 		static LogErrorFn LoggerError;
@@ -1592,6 +1594,8 @@ namespace SkeetSDK
 	CFn				Utils::GetState			= nullptr;
 	PCLuas			Utils::LuaInfo			= nullptr;
 	LoadLuaFn		Utils::LoadLua			= nullptr;
+	LoadLuaFn		Utils::AfterLoad		= nullptr;
+	ThisFn			Utils::AfterTab			= nullptr;
 	DecryptFn		Utils::Decrypt			= nullptr;
 	CryptFn			Utils::Crypt			= nullptr;
 	ThisFn			Utils::InitTab			= nullptr;
@@ -1676,12 +1680,45 @@ namespace SkeetSDK
 	{
 		wchar_t* name = LuaName(index);
 		if (name == NULL) return false;
-		return LoadLua(name, Memory::GetChunkAs<LuaChunk*>(UI::GetTab(CONFIG)));
+		PCTab config = UI::GetTab(CONFIG);
+		PListbox scripts = UI::GetChild(CONFIG, 1)->Elements[3]->GetAs<Listbox>();
+		LuaChunk* chunk = Memory::GetChunkAs<LuaChunk*>(config);
+		bool result = LoadLua(name);
+		if (result)
+		{
+			if (GetState() != nullptr)
+			{
+				AfterLoad(chunk[index].Name._Unchecked_begin());
+				scripts->Info.Items[index].Flags |= LUALOADED_FLAG;
+			};
+		};
+		AfterTab(config);
+		return result;
 	};
 
-	bool Utils::LoadScript(wchar_t* name)
+	bool Utils::LoadScript(const wchar_t* name)
 	{
-		return LoadLua(name, Memory::GetChunkAs<LuaChunk*>(UI::GetTab(CONFIG)));
+		PCTab config = UI::GetTab(CONFIG);
+		PListbox scripts = UI::GetChild(CONFIG, 1)->Elements[3]->GetAs<Listbox>();
+		LuaChunk* chunk = Memory::GetChunkAs<LuaChunk*>(config);
+		bool result = LoadLua(name);
+		if (result)
+		{
+			if (GetState() != nullptr)
+			{
+				for (size_t i = 0; i < LuaCount(); i++)
+				{
+					if (!wcscmp(chunk[i].Name._Unchecked_begin(), name))
+					{
+						AfterLoad(chunk[i].Name._Unchecked_begin());
+						scripts->Info.Items[i].Flags |= LUALOADED_FLAG;
+						break;
+					};
+				};
+			};
+		};
+		AfterTab(config);
+		return result;
 	};
 
 	void Utils::AllowUnsafe(int value)
@@ -1689,7 +1726,7 @@ namespace SkeetSDK
 		UI::SetCheckbox(Menu->Tabs[CONFIG]->Childs[1]->Elements[1]->GetAs<Checkbox>(), value);
 	};
 
-	PXorW Utils::CryptName(wchar_t* name)
+	PXorW Utils::CryptName(const wchar_t* name)
 	{
 		return (PXorW)Crypt(name, (wcslen(name) + 1) * sizeof(wchar_t), 2);
 	};
@@ -1862,7 +1899,7 @@ namespace SkeetSDK
 		return (hotkey->Info->Key >> 1) & 1;
 	};
 
-	void UI::RenameElement(PElement element, wchar_t* name, PXorW oldname)
+	void UI::RenameElement(PElement element, const wchar_t* name, PXorW oldname)
 	{
 		if (oldname)
 			oldname = element->GetAs<Inspector>()->crypted;
@@ -1905,14 +1942,14 @@ namespace SkeetSDK
 		ChildLayout(child);
 	};
 
-	PLabel UI::CreateLabel(PChild child, wchar_t* name)
+	PLabel UI::CreateLabel(PChild child, const wchar_t* name)
 	{
 		PLabel ptr = (PLabel)AddLabel(child, 0, name);
 		ChildLayout(child);
 		return ptr;
 	};
 
-	PTextbox UI::CreateTextbox(PChild child, bool sameline, wchar_t* name)
+	PTextbox UI::CreateTextbox(PChild child, bool sameline, const wchar_t* name)
 	{
 		if (!sameline && name)
 			CreateLabel(child, name);
@@ -1922,7 +1959,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 
-	PCheckbox UI::CreateCheckbox(PChild child, wchar_t* name, int* value)
+	PCheckbox UI::CreateCheckbox(PChild child, const wchar_t* name, int* value)
 	{
 		PCheckbox ptr = (PCheckbox)Memory::Allocator(sizeof(Checkbox));
 		CheckboxCon(ptr, child, name, value);
@@ -1930,7 +1967,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 
-	PSlider UI::CreateSlider(PChild child, wchar_t* name, int min, int max, int* value, bool tooltip, wchar_t* tip, float step)
+	PSlider UI::CreateSlider(PChild child, const wchar_t* name, int min, int max, int* value, bool tooltip, wchar_t* tip, float step)
 	{
 		PSlider ptr = (PSlider)Memory::Allocator(sizeof(Slider));
 		unsigned int tipch = 0;
@@ -1941,7 +1978,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 
-	PHotkey UI::CreateHotkey(PChild child, wchar_t* name, bool sameline, int vkey, HotkeyMode mode)
+	PHotkey UI::CreateHotkey(PChild child, const wchar_t* name, bool sameline, int vkey, HotkeyMode mode)
 	{
 		if (!sameline)
 			CreateLabel(child, name);
@@ -1955,7 +1992,7 @@ namespace SkeetSDK
 	};
 
 	// ecx = first parameter that function recive, while second one is always this pointer
-	PButton UI::CreateButton(PChild child, wchar_t* name, F2PFn function, void* ecx)
+	PButton UI::CreateButton(PChild child, const wchar_t* name, F2PFn function, void* ecx)
 	{
 		PButton ptr = (PButton)AddButton(child, NULL, name, ecx, function);
 		ChildLayout(child);
@@ -1972,7 +2009,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 
-	PCombobox UI::CreateCombobox(PChild child, wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool sameline)
+	PCombobox UI::CreateCombobox(PChild child, const wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool sameline)
 	{
 		PCombobox ptr = (PCombobox)Memory::Allocator(sizeof(Combobox));
 		ComboboxCon(ptr, child, name, value, sameline);
@@ -1985,7 +2022,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 
-	PMultiselect UI::CreateMultiselect(PChild child, wchar_t* name, int* value, char** arr, size_t arrsize, bool sameline)
+	PMultiselect UI::CreateMultiselect(PChild child, const wchar_t* name, int* value, char** arr, size_t arrsize, bool sameline)
 	{
 		PMultiselect ptr = (PMultiselect)Memory::Allocator(sizeof(Multiselect));
 		MultiCon(ptr, child, name, value, 0, sameline);
@@ -1998,7 +2035,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 
-	PListbox UI::CreateListbox(PChild child, wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool searchbox)
+	PListbox UI::CreateListbox(PChild child, const wchar_t* name, int* value, wchar_t** arr, size_t arrsize, bool searchbox)
 	{
 		PListbox ptr = (PListbox)Memory::Allocator(sizeof(Listbox));
 		ListboxCon(ptr, child, name, 158, 300, value, searchbox);
@@ -2016,7 +2053,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 
-	void UI::AddListboxVar(PListbox list, wchar_t* elem, size_t bsize)
+	void UI::AddListboxVar(PListbox list, const wchar_t* elem, size_t bsize)
 	{
 		if (!list->ItemsCount)
 		{
@@ -2048,7 +2085,7 @@ namespace SkeetSDK
 		tab->ResetLayout();
 	};
 
-	PChild UI::CreateChild(PCTab tab, wchar_t* name, Vec4_8t possize, bool modify)
+	PChild UI::CreateChild(PCTab tab, const wchar_t* name, Vec4_8t possize, bool modify)
 	{
 		PChild ptr = (PChild)Memory::Allocator(sizeof(Child));
 		ChildCon(ptr, tab, name, possize.pack(), 0, modify);
@@ -2056,7 +2093,7 @@ namespace SkeetSDK
 		return ptr;
 	};
 	// BEWARE: INSERTS ON TOP
-	PCTab UI::CreateTab(wchar_t* name, Vec2 pos)
+	PCTab UI::CreateTab(const wchar_t* name, Vec2 pos)
 	{
 		PCTab ptr = (PCTab)Memory::Allocator(sizeof(CTab));
 		TabCon(ptr, Menu, name, pos.array());
@@ -2183,7 +2220,7 @@ namespace SkeetSDK
 		return h;
 	};
 
-	Vec2 Renderer::MeasureText(wchar_t* text, unsigned int flags)
+	Vec2 Renderer::MeasureText(const wchar_t* text, unsigned int flags)
 	{
 		Vec2 vec{};
 		SCLASS->IRenderer->MeasureText(reinterpret_cast<int*>(&vec), text, wcslen(text), flags);
@@ -2195,7 +2232,7 @@ namespace SkeetSDK
 		WorldToScreen(pos.array(), x, y);
 	};
 
-	void Renderer::Text(Vec2 pos, VecCol color, wchar_t* text, int flags, unsigned int maxlen)
+	void Renderer::Text(Vec2 pos, VecCol color, const wchar_t* text, int flags, unsigned int maxlen)
 	{
 		SCLASS->IRenderer->Text(flags, pos.x, pos.y, color.pack(), 0x8 * maxlen, text, wcslen(text));
 	};
@@ -2493,7 +2530,12 @@ namespace SkeetSDK
 		LoggerError(msg);
 	};
 #endif // SDK_CLIENT_IMP
-	void __stdcall InitAndWaitForSkeet()
+	void WaitForTabs()
+	{
+		while (Menu->Tabs._Unchecked_begin() == nullptr || Menu->Tabs[LUA] == nullptr || Menu->Tabs[LUA]->Childs[1] == nullptr) Sleep(50);
+	};
+
+	void InitAndWaitForSkeet()
 	{
 		using namespace Memory;
 
@@ -2529,6 +2571,8 @@ namespace SkeetSDK
 		Utils::GetState = (CFn)CheatChunk.find("A1 ?? ?? ?? ?? 85 C0 75 01 C3 83 C0 44 C3");
 		Utils::LuaInfo = *(PCLuas*)CheatChunk.find("A1 ?? ?? ?? ?? 85 C0 75 01 C3 83 C0 44 C3", 0x1);
 		Utils::LoadLua = (LoadLuaFn)CheatChunk.find("83 EC 4C 53 55 33");
+		Utils::AfterLoad = (LoadLuaFn)Memory::CheatChunk.find("51 8B D1 56 8B");
+		Utils::AfterTab = (ThisFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 81 EC 04 01 00 00 80");
 		Utils::Decrypt = (DecryptFn)CheatChunk.find("51 51 55 56 8B C2");
 		Utils::Crypt = (CryptFn)CheatChunk.find("51 53 8B 5C 24 0C 55 56 8B E9");
 		Utils::InitTab = (ThisFn)CheatChunk.find("55 8B EC 83 E4 F8 83 EC 30 53 8B");
