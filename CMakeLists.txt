@@ -32,4 +32,4 @@ if(CMAKE_CONFIGURATION_TYPES)
 endif()
 
 add_library(SkeetSDK SHARED
-        dllmain.cpp)
+        src/dllmain.cpp)
