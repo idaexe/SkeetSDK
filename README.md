@@ -1,3 +1,0 @@
-# SkeetSDK
-
-Soon
