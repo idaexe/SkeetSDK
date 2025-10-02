@@ -1,7 +1,10 @@
 ### CMake
-cmake-build-debug
-cmake-build-release
-dist
+cmake-build-debug/
+cmake-build-release/
+dist/
+
+### JetBrains
+.idea/
 
 ### C++ template
 # Prerequisites
