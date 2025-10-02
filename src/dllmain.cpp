@@ -1,6 +1,6 @@
 #include <windows.h>
 
-BOOL WINAPI DllMain([[maybe_unused]] HINSTANCE instance, unsigned long reason, void* reserved )
+BOOL WINAPI DllMain(HINSTANCE instance, unsigned long reason, void* reserved )
 {
     if (reason == DLL_PROCESS_ATTACH)
     {
