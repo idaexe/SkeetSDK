@@ -4,23 +4,30 @@
 #include <Windows.h>
 #include <psapi.h>
 #include <vector>
+#include <string_view>
+
+#ifdef INCLUDE_NLOHMANN_JSON_HPP_
+#define HAS_JSON 1
+#else
+#define HAS_JSON 0
+#endif // INCLUDE_NLOHMANN_JSON_HPP_
 
 #if defined(__GNUC__) || defined(__GNUG__)
 #define FORCECALL __attribute__((noinline))
 #else
 #define FORCECALL __declspec(noinline)
-#endif
+#endif // __GNUC__ || __GNUG__
 
-#define LUALOADED_FLAG 1 << 15
+#define LUALOADED_FLAG 1u << 31
 
 // Only use if you know what you are doing, incorrect usage of raw functions can cause undefined behavior
 #ifdef _SDK_PUBLIC_UNSAFE_MEMBERS
-#define MEMBERS_PRIVATE public:
-#define MEMBERS_PUBLIC
+#define MEMBERS_PRIVATE public
+#define MEMBERS_PUBLIC public
 #else
-#define MEMBERS_PRIVATE private:
-#define MEMBERS_PUBLIC	public:
-#endif
+#define MEMBERS_PRIVATE private
+#define MEMBERS_PUBLIC	public
+#endif // _SDK_PUBLIC_UNSAFE_MEMBERS
 
 #ifdef SDK_RENDERER_IMP
 #define TEXT_FLAG_DPI_SCALED		0x0
@@ -34,21 +41,23 @@
 #define TEXTURE_FLAG_AUTO			0x0
 #define TEXTURE_FLAG_FILLED			0x1
 #define TEXTURE_FLAG_REPEAT			0x2
-#endif
+#endif // SDK_RENDERER_IMP
 
 namespace SkeetSDK {
-// functions signatures
-	// Pulbic signatures
+	// functions signatures
+		// Pulbic signatures
 	typedef void* (__cdecl* CFn)(void);	//__cdecl ptr return
 	typedef void(__thiscall* ThisFn)(void*);
 	typedef	void(__thiscall* T2PFn)(void*, void*); // __thiscall 2 pointers
 	typedef void(__fastcall* F2PFn)(void*, void*);	//__fascall 2 pointers
+	typedef bool(__thiscall* BTFn)(void*); // __thiscall bool return
 	typedef void(__thiscall* ThisIntFn)(void*, int);
 	// Memory signatures
 	typedef void* (__thiscall* AllocatorFn)(int);
 	// Misc signatures
 	typedef bool(__thiscall* LoadLuaFn)(const wchar_t*);
 	typedef unsigned int(__fastcall* HashFn)(const wchar_t*);
+	typedef unsigned int(__fastcall* Hashi8Fn)(const char*);
 	typedef void* (__fastcall* CryptFn)(const wchar_t*, size_t, int);
 	typedef int(__fastcall* DecryptFn)(void*, int, wchar_t*, int);
 	typedef bool(__fastcall* GetConfigDataFn)(const char*, void*);
@@ -88,8 +97,8 @@ namespace SkeetSDK {
 	typedef void(__cdecl* LogColorFn)(void*, int*, char*, ...);
 	typedef void(__thiscall* ScreenLogFn)(const char*, int);
 	typedef void(__fastcall* SetClanTagFn)(const char*, const char*);
-// enums
-	enum Tab
+	// enums
+	enum ETab : uint32_t
 	{
 		RAGE,
 		AA,
@@ -181,7 +190,7 @@ namespace SkeetSDK {
 		REVENT_FINAL
 	};
 
-//vectors
+	//vectors
 	struct Vec2f_t
 	{
 		float x;
@@ -216,74 +225,148 @@ namespace SkeetSDK {
 	{
 		int x;
 		int y;
-		Vec2() : x(0), y(0) {};
-		Vec2(int x, int y) : x(x), y(y) {};
-		Vec2 operator+(Vec2 vec)
+		Vec2() {};
+		Vec2(int x, int y)
+		{
+			set(x, y);
+		};
+
+		inline Vec2 operator+(Vec2 vec)
 		{
 			return Vec2(this->x + vec.x, this->y + vec.y);
 		};
-		Vec2 operator+(int sum)
+
+		inline Vec2 operator+(int sum)
 		{
 			return Vec2(this->x + sum, this->y + sum);
 		};
-		Vec2 operator-(Vec2 vec)
+
+		inline Vec2 operator-(Vec2 vec)
 		{
 			return Vec2(this->x - vec.x, this->y - vec.y);
 		};
-		Vec2 operator-(int sub)
+
+		inline Vec2 operator-(int sub)
 		{
 			return Vec2(this->x - sub, this->y - sub);
 		};
-		Vec2 operator*(float mul)
+
+		inline Vec2 operator*(float mul)
 		{
 			return Vec2(this->x * mul, this->y * mul);
 		};
-		Vec2 operator*(Vec2f_t mul)
+
+		inline Vec2 operator*(Vec2f_t mul)
 		{
 			return Vec2((int)((float)this->x * mul.x), (int)((float)this->y * mul.y));
 		};
-		Vec2& operator+=(const Vec2& vec)
+
+		inline Vec2& operator+=(const Vec2& vec)
 		{
 			this->x += vec.x;
 			this->y += vec.y;
 			return *this;
 		}
-		int* array()
+
+		inline void set(int x, int y)
+		{
+			this->x = x;
+			this->y = y;
+		};
+
+		inline int* array()
 		{
 			return reinterpret_cast<int*>(this);
 		};
+
+		inline int& operator[](size_t idx)
+		{
+			return array()[idx];
+		};
+
+#if HAS_JSON
+		friend inline void to_json(nlohmann::json& j, const Vec2& vec)
+		{
+			j = nlohmann::json::array({ vec.x, vec.y });
+		};
+
+		friend inline void from_json(const nlohmann::json& j, Vec2& vec)
+		{
+			vec.x = j[0].get<int>();
+			vec.y = j[1].get<int>();
+		};
+#endif
 	};
 
 	class VecCol
 	{
+		using col_t = unsigned char;
 	public:
-		unsigned char r;
-		unsigned char g;
-		unsigned char b;
-		unsigned char a;
+		col_t r;
+		col_t g;
+		col_t b;
+		col_t a;
+		VecCol() {};
+
 		VecCol(unsigned int hex)
 		{
-			this->r = (unsigned char)hex;
-			this->g = hex >> 8;
-			this->b = hex >> 16;
-			this->a = hex >> 24;
-		}
-		VecCol(unsigned char r, unsigned char g, unsigned char b, unsigned char a) : r(r), g(g), b(b), a(a) {};
-		int pack()
-		{
-			return (this->r | this->g << 8 | this->b << 16 | this->a << 24);
+			set(hex);
 		};
-		void invert()
+
+		VecCol(unsigned int r, unsigned int g, unsigned int b, unsigned int a)
 		{
-			this->r = 255 - this->r;
-			this->g = 255 - this->g;
-			this->b = 255 - this->b;
-			this->a = 255 - this->a;
+			set(r, g, b, a);
 		};
-		VecCol negate()
+
+		inline void set(unsigned int r, unsigned int g, unsigned int b, unsigned int a)
+		{
+			*this = VecCol(r, g, b, a);
+		};
+
+		inline void set(unsigned int hex)
+		{
+			*reinterpret_cast<int*>(this) = hex;
+		};
+
+		inline unsigned int pack()
+		{
+			return *reinterpret_cast<int*>(this);
+		};
+
+		inline VecCol negated()
 		{
 			return VecCol(255 - this->r, 255 - this->g, 255 - this->b, this->a);
 		};
+
+		inline void invert()
+		{
+			*this = this->negated();
+		};
+
+		inline col_t* array()
+		{
+			return reinterpret_cast<col_t*>(this);
+		};
+
+		inline col_t& operator[](size_t idx)
+		{
+			return array()[idx];
+		};
+
+#if HAS_JSON
+		friend inline void to_json(nlohmann::json& j, const VecCol& col)
+		{
+			j = nlohmann::json::array({ col.r, col.g, col.b, col.a });
+		};
+
+		friend inline void from_json(const nlohmann::json& j, VecCol& col)
+		{
+			col.r = j[0].get<uint32_t>();
+			col.g = j[1].get<uint32_t>();
+			col.b = j[2].get<uint32_t>();
+			col.a = j[3].get<uint32_t>();
+		};
+#endif
 	};
 
 	struct Vec4_8t
@@ -297,7 +380,7 @@ namespace SkeetSDK {
 			return (this->x | this->y << 8 | this->z << 16 | this->w << 24);
 		};
 	};
-	
+
 	template<typename T>
 	class sVec
 	{
@@ -452,7 +535,7 @@ namespace SkeetSDK {
 		class SigFinder
 		{
 			MODULEINFO info;
-			static sVec<int> ida_sig_resolver(const char* sig);
+			static sVec<short> ida_sig_resolver(const char* sig);
 		public:
 			SigFinder(const char* module);
 			SigFinder(LPVOID lpBaseAdress, DWORD SizeOfImage);
@@ -478,13 +561,19 @@ namespace SkeetSDK {
 		{
 			static sVec<CHooked*> Hooked;
 		public:
-			static CHooked* Hook(void* Dst, void* Src, size_t size = 5);
+			enum JuncType : unsigned char
+			{
+				CALL = 0xE8,
+				JUMP
+			};
+
+			static CHooked* Hook(void* Dst, void* Src, size_t size = 5, JuncType junc = JUMP);
 			static void UnhookAll();
 		};
 		static SigFinder	CheatChunk((LPVOID)0x43310000, 0x2FC000u);
 		static AllocatorFn	Allocator;
-		static ThisFn		Deallocator; // its vector deallocator, verifies vec and calls raw deallocator
-		static ThisFn		_RawDealloc; // its raw deallocator
+		static ThisFn		VecDeallocator; // its vector deallocator, verifies vec and calls raw deallocator
+		static ThisFn		Deallocator; // its raw deallocator
 
 		template<typename T>
 		class SkeetAllocator
@@ -523,7 +612,7 @@ namespace SkeetSDK {
 
 			void deallocate(pointer ptr, size_type) noexcept
 			{
-				_RawDealloc(ptr);
+				Deallocator(ptr);
 			};
 
 			template<typename U, typename... Args>
@@ -545,7 +634,7 @@ namespace SkeetSDK {
 	template<typename _Ty>
 	using skeetvec = std::vector<_Ty, Memory::SkeetAllocator<_Ty>>;
 
-//structs class
+	//structs class
 #pragma pack(push, 1)
 	typedef struct Child* PChild;
 	typedef struct CTab* PCTab;
@@ -559,7 +648,7 @@ namespace SkeetSDK {
 		Vec2		LastMenuPos;
 	};
 
-	struct Flags
+	struct Flags_t
 	{
 		bool Editable;
 		bool Visible;
@@ -577,7 +666,7 @@ namespace SkeetSDK {
 
 	typedef struct Call
 	{
-		void*	ecx;
+		void* ecx;
 		F2PFn	function;	// function(ecx, elementptr)
 		Call() {};
 		Call(void* ecx, F2PFn function) : ecx(ecx), function(function) {};
@@ -596,8 +685,8 @@ namespace SkeetSDK {
 	{
 		char	pad1[0x8];
 		int		Index;		// 0xC	in CTab - tab index, in Childs - first element index, in Elements - element index
-		T*		Parent;		// 0x10
-		Flags	Flags;		// 0x14
+		T* Parent;		// 0x10
+		Flags_t	Flags;		// 0x14
 		UiType	Type;		// 0x19
 		char	pad2[0x2];
 		int		Font;		// 0x1C
@@ -607,6 +696,14 @@ namespace SkeetSDK {
 	class IElement
 	{
 		virtual void fn0() = 0;
+		virtual void fn1() = 0;
+		virtual void fn2() = 0;
+		virtual void fn3() = 0;
+		virtual void fn4() = 0;
+		virtual void OnCfgLoad() = 0;
+	public:
+		virtual void AfterInteraction() = 0;
+		virtual void OnValueSet() = 0;
 	};
 
 	// Slider is 0x124 bytes long
@@ -623,7 +720,7 @@ namespace SkeetSDK {
 		VecCol				Color;			// 0x50
 		int					LeftPaddign;	// 0x54
 		char				pad4[0x4];
-		int*				Value;			// 0x5C
+		int* Value;			// 0x5C
 		Vec2				DefSize;		// 0x60
 		bool				Active;			// 0x68
 		bool				Tooltip;		// 0x69
@@ -649,11 +746,15 @@ namespace SkeetSDK {
 		VecCol				Color;			// 0x50
 		int					LeftPaddign;	// 0x54
 		char				pad4[0x4];
-		int*				Value;			// 0x5C
+		bool* Value;			// 0x5C
 		Vec2				Size;			// 0x60
 		int					TextPadding;	// 0x68
-		char				pad5[0xC];
+		int					SomeFlag;		// 0x6C idk whats that
+		PElement			TiedElements;	// 0x70 tied elements which visible depends on checkbox value (points to the end of list)
+		void* SomePtr1;		// 0x74 refers on TiedElements?
 	} *PCheckbox;
+
+	static_assert(sizeof(Checkbox) == 0x78);
 
 	// Multiselect is 0x32C bytes long
 	typedef struct Multiselect : IElement
@@ -669,7 +770,7 @@ namespace SkeetSDK {
 		VecCol					Color;				// 0x50
 		int						LeftPaddign;		// 0x54
 		char					pad3[0x4];
-		int*					Value;				// 0x5C
+		int* Value;				// 0x5C
 		int						heigth;				// 0x60
 		char					pad4[0x4];
 		bool					Popup;				// 0x68
@@ -684,16 +785,9 @@ namespace SkeetSDK {
 		BoxVars<char>			Varsi[];			// 0x90
 	} *PMultiselect;
 
-	typedef struct
-	{
-		wchar_t* data;
-		int	len;
-	} wchar_str;
-
 	struct ListBoxVar
 	{
-		short				Index;
-		short				Flags; // 0x8000 if lua loaded
+		unsigned int		Index;
 		skeetvec<wchar_t>	Name;
 		char				pad2[0x4];
 		ListBoxVar(size_t Index, skeetvec<wchar_t> Name) : Index(Index), Name(Name) {};
@@ -711,8 +805,8 @@ namespace SkeetSDK {
 		int					HoveredItem;	// 0x68
 		int					SelectedItem;	// 0x6C
 		SetModeFn			SetMode;		// 0x70
-		wchar_str			Variants[4];	// 0x74
-	} HotkeyPop, *PHotkeyPop;
+		std::wstring_view	Variants[4];	// 0x74
+	} HotkeyPop, * PHotkeyPop;
 
 	// HotkeyInfo is 0x28 bytes long
 	typedef struct HotkeyInfo
@@ -793,13 +887,13 @@ namespace SkeetSDK {
 		VecCol				Color;			// 0x50
 		int					LeftPaddign;	// 0x54
 		char				pad3[0x4];
-		VecCol*				Value;			// 0x5C
+		VecCol* Value;			// 0x5C
 		char				pad4[0x4];
 		ColorPopup			Popup;			// 0x64
 		char				pad5[0x88];
 		PickerStatus		Status;			// 0x128
 		HSV					HSV;			// 0x12C
-	} CPicker, *PCPicker;
+	} CPicker, * PCPicker;
 
 	// Combobox is 0xA8 bytes long
 	typedef struct Combobox : IElement
@@ -814,7 +908,7 @@ namespace SkeetSDK {
 		char						pad2[0x4];
 		VecCol						Color;				// 0x50
 		Vec2						BoxPos;				// 0x54
-		int*						Value;				// 0x5C
+		uint32_t* Value;				// 0x5C
 		int							Defheigth;			// 0x60
 		int							heigth;				// 0x64
 		int							DefInteractOffset;	// 0x68
@@ -824,7 +918,7 @@ namespace SkeetSDK {
 		char						pad3[0x2];
 		int							HoveredItem;		// 0x74
 		int							SelectedItem;		// 0x78
-		skeetvec<BoxVars<wchar_t>>	Vars;			// 0x7C
+		skeetvec<BoxVars<wchar_t>>	Vars;				// 0x7C
 		char						pad4[0x20];
 	} *PCombobox;
 
@@ -836,7 +930,7 @@ namespace SkeetSDK {
 		Vec2				OuterPadding;		// 0x28
 		Vec2				DefOuterPadding;	// 0x30
 		PXorW				CryptedName;		// 0x38
-		char				pad1[0x4];
+		char				pad1[0x4];			// Could be shared_ptr
 		skeetvec<Call>		Calls;				// 0x40
 		char				pad2[0x4];
 		VecCol				Color;				// 0x50
@@ -851,7 +945,7 @@ namespace SkeetSDK {
 		char				pad2[0x4];
 		skeetvec<ListBoxVar>Items;			// 0x90
 		char				pad3[0x4];
-	} ListInfo, *PListInfo;
+	} ListInfo, * PListInfo;
 
 	typedef struct SSpec
 	{
@@ -907,7 +1001,7 @@ namespace SkeetSDK {
 
 	typedef struct Inspector
 	{
-		void**			Vtable;			// 0x00
+		void** Vtable;			// 0x00
 		char			pad1[0x15];
 		UiType			Type;			// 0x19
 		char			pad2[0x1E];
@@ -915,7 +1009,7 @@ namespace SkeetSDK {
 		char			pad3[0x4];
 		skeetvec<Call>	Calls;			// 0x40
 		char			pad4[0x10];
-		void*			value;			// 0x5C
+		void* value;			// 0x5C
 	} *PInspector;
 
 	typedef struct CWidg
@@ -939,8 +1033,22 @@ namespace SkeetSDK {
 		PXorW name;
 	} *PUnkn;
 
+	class IChild
+	{
+		virtual void fn0() = 0;
+		virtual void fn1() = 0;
+		virtual void fn2() = 0;
+		virtual void fn3() = 0;
+		virtual void fn4() = 0;
+		virtual void OnCfgLoad() = 0;
+		virtual void fn6() = 0;
+		virtual void fn7() = 0;
+	public:
+		virtual void CalculateLayout() = 0;
+	};
+
 	// Child is 0xC8 bytes long
-	struct Child : IElement
+	struct Child : public IChild
 	{
 		Header<CTab>		Header;
 		Vec2				Pos;				// 0x20
@@ -996,9 +1104,16 @@ namespace SkeetSDK {
 		virtual void fn10() = 0;
 		virtual void fn11() = 0;
 		virtual void fn12() = 0;
-		virtual void fn13() = 0;
 	public:
-		virtual void ResetLayout();
+		virtual void OnOpen() = 0;
+		virtual void ResetLayout() = 0;
+	};
+
+	typedef struct TabActivies
+	{
+		int LastActiveChild;		// 0x64
+		int LastActiveElementIndex;	// 0x68
+		int LastActiveElementId;	// 0x6C
 	};
 
 	struct CTab : public ITab
@@ -1012,13 +1127,13 @@ namespace SkeetSDK {
 		VecCol				Color;				// 0x50
 		char				pad2[0xC];
 		PCMenu				Menu;				// 0x60
-		char				pad3[0xC];
+		TabActivies			InteractionInfo;	// 0x64
 		skeetvec<PChild>	Childs;				// 0x70
 		TabIcon				Icon;				// 0x7C
 		int					Padding;			// 0x94
-		void*				Chunk;				// 0x98
-		void*				ChunkEnd;			// 0x9C
-		void*				ChunkCapacityEnd;	// 0xA0
+		void* Chunk;				// 0x98
+		void* ChunkEnd;			// 0x9C
+		void* ChunkCapacityEnd;	// 0xA0
 		PElement			CEs[0x20];			// 0xA4	childs and some elems lets say it will be 0x20 size for our allocation purposes
 	};
 
@@ -1030,11 +1145,11 @@ namespace SkeetSDK {
 		int					OnStartup;	// 0x8
 		skeetvec<wchar_t>	Name;		// 0xC
 		char				pad2[0x8];
-	} LuaChunk;
+	} LuaInfo;
 
 	struct CMenu
 	{
-		void**			Vtable;				// 0x0
+		void** Vtable;				// 0x0
 		PCMenu			NextMenu;			// 0x4
 		char			pad1[0x4];
 		Vec2			Pos;				// 0xC
@@ -1047,12 +1162,12 @@ namespace SkeetSDK {
 		char			pad2[0x8];
 		skeetvec<PCTab>	Tabs;				// 0x54
 		char			pad3[0x4];
-		Tab				CurrentTab;			// 0x64
+		ETab			CurrentTab;			// 0x64
 		char			pad4[0x20];
 		unsigned int	MenuFadeTickCount;	// 0x88
 		FadeType		MenuFadeType;		// 0x8C
 		char			pad5[0x4];
-		void*			SomeVT;				// 0x94
+		void* SomeVT;				// 0x94
 		int				SomeInt;			// 0x98
 		char			pad6[0x14];
 		float			MenuAlpha;			// 0xB0
@@ -1062,13 +1177,36 @@ namespace SkeetSDK {
 
 	};
 
+	struct RBNodeBase
+	{
+		RBNodeBase* left;
+		RBNodeBase* right;
+		RBNodeBase* parent;
+		bool color;
+	};
+
+	struct RBTree
+	{
+		RBNodeBase* leftmost;
+		RBNodeBase* root;
+		RBNodeBase* rightmost;
+		RBNodeBase* header;
+		size_t unkn;
+		size_t count;
+	};
+
+	struct SLua
+	{
+		void* LuaState;		// 0x44
+		char	pad2[0x10];
+		RBTree	LoadedLuaTree;	// 0x58: count 0x6C
+	} s;
+
 	typedef struct CLua
 	{
 		char	pad1[0x44];
-		void*	LuaState;		// 0x44
-		char	pad2[0x24];
-		int		LoadedCount;	// 0x6C
-	} *PCLua, **PCLuas;
+		SLua	s;
+	} *PCLua, ** PCLuas;
 
 #pragma pack(pop)
 
@@ -1143,41 +1281,44 @@ namespace SkeetSDK {
 		void* ThreadInMainThread;
 	};
 
-//SDK Vars
+	//SDK Vars
 	static SkeetClass_* SCLASS = nullptr;
 	static PCMenu Menu = nullptr;
-//SDK Classes
+	//SDK Classes
 	class Utils final
 	{
 		friend void InitAndWaitForSkeet();
 		friend class UI;
-	MEMBERS_PRIVATE
+		MEMBERS_PRIVATE:
 		static GetConfigDataFn	GetConfigData;
 		static LoadConfigFn		LoadConfig;
 		static CFn				InitState;
-		static CFn				GetState;
-		static PCLuas			LuaInfo;
+		static CFn				GetLuaLState;
+		static PCLuas			LuaLoader_State;
 		static LoadLuaFn		LoadLua;
-		static LoadLuaFn		AfterLoad;
+		static BTFn				IsLuaLoaded;
 		static ThisFn			AfterTab;
+		static ThisFn			AfterTabCfg;
+		static ThisFn			AfterTabRage;
 		static DecryptFn		Decrypt;
 		static CryptFn			Crypt;
 		static ThisFn			InitTab;
 		static ThisFn			Callback;
 		static HashFn			Hash;
-	MEMBERS_PUBLIC
+		static Hashi8Fn			Hashi8;
+		MEMBERS_PUBLIC:
 		static unsigned int* HashedCfgName;
 
 		static int			LuaCount();
-		static wchar_t*		LuaName(int index);
+		static wchar_t* LuaName(int index);
 		static bool			LoadScript(int index);
-		static bool			LoadScript(const wchar_t* name);
+		static bool			LoadScript(const wchar_t* name, bool set_onload);
 		static void			AllowUnsafe(int value);
 		static void			LoadCfg(int index = -1);
 		static void			LoadCfg(const char* cfgname);
 		static PXorW		CryptName(const wchar_t* name);
-		static void*		LuaState();
-		static void*		GetLuaState();
+		static void* LuaState();
+		static void* GetLuaState();
 		static void			ForEach(PChild child, void(*func)(PElement), UiType T = UiNone);
 		static PCLua		GetLuaInfo();
 		static void			InitConfig();
@@ -1190,7 +1331,7 @@ namespace SkeetSDK {
 	class UI final
 	{
 		friend void InitAndWaitForSkeet();
-	MEMBERS_PRIVATE
+		MEMBERS_PRIVATE:
 		static ThisIntFn		TabSwitch;
 		static ThisIntFn		SetList;
 		static ThisFn			ChildLayout;
@@ -1217,29 +1358,30 @@ namespace SkeetSDK {
 		static CHConFn			ChildCon;
 		static TCConFn			TabCon;
 		static GetTBoxTextFn	GetTBoxText;
-	MEMBERS_PUBLIC
+		MEMBERS_PUBLIC:
 		static void			ResetLayout();
-		static void			SetTab(Tab tab);
-		static PCTab		GetTab(Tab tab);
-		static Tab			GetActiveTab();
+		static void			SetTab(uint32_t idx);
+		static PCTab		GetTab(ETab tab);
+		static ETab			GetActiveTab();
 		static PCTab		GetActiveCTab();
 		static void			SetVisible(PElement element, bool value);
 		static VecCol		GetMenuCol();
+		static void			SetMenuCol(VecCol col);
 		static void			SetInput(PElement elemen, bool val);
-		static void*		TieValue(PElement element, void* ptr);
+		static void* TieValue(PElement element, void* ptr);
 		static void			SetCallback(PElement elem, F2PFn func, void* ecx = NULL);
 		static void			DeleteElement(PElement element);
 		static void			SetCheckbox(PCheckbox checkbox, int value);
 		static void			SetColorRGBA(PCPicker picker, VecCol Color);
 		static void			SetColorHSV(PCPicker picker, HSV Color);
 		static void			SetSlider(PSlider slider, int value);
-		static void			SetCombobox(PCombobox combobox, int value);
+		static void			SetCombobox(PCombobox combobox, uint32_t value);
 		static void			SetListbox(PListbox listbox, int value);
 		static void			SetHotkey(PHotkey hotkey, int key, HotkeyMode mode = Inherit);
 		static int			ExtractKey(PHotkey hotkey);
 		static int			HotkeyState(PHotkey hotkey);
 		static void			RenameElement(PElement element, const wchar_t* name, PXorW oldname);
-		static wchar_t*		GetName(PElement element);
+		static wchar_t* GetName(PElement element);
 		static size_t		GetTextbotText(PTextbox tbox, wchar_t* buffer);
 		static void			InsertElement(PChild child, void* element);
 		static PLabel		CreateLabel(PChild child, const wchar_t* name);
@@ -1259,8 +1401,8 @@ namespace SkeetSDK {
 		static PCTab		CreateTab(const wchar_t* name, Vec2 pos);
 
 		static FORCECALL PElement		GetByName(PChild child, const wchar_t* name);
-		static FORCECALL PChild			GetChild(Tab tab, size_t index);
-		template<typename T> static T*	GetElement(PChild, size_t index);
+		static FORCECALL PChild			GetChild(ETab tab, size_t index);
+		template<typename T> static T* GetElement(PChild, size_t index);
 	};
 
 	class EventListener
@@ -1285,7 +1427,7 @@ namespace SkeetSDK {
 
 	class Renderer final
 	{
-	MEMBERS_PRIVATE
+		MEMBERS_PRIVATE:
 		static sVec<RenderEventListenerFn> RenderEvents;
 		static sVec<RenderEventListenerFn> MenuEvents;
 		static sVec<RenderEventListenerFn> FinalEvents;
@@ -1305,7 +1447,7 @@ namespace SkeetSDK {
 		static void RemoveEvent(size_t index, RenderEventType type);
 		static void LoadTextureFromFile(CTexture& texture, const char* filename, TextureType type);
 		friend class EventListener;
-	MEMBERS_PUBLIC
+		MEMBERS_PUBLIC:
 		static void Init();
 		static void Term();
 		static EventListener* AddEvent(RenderEventType type, RenderEventListenerFn event);
@@ -1373,11 +1515,11 @@ namespace SkeetSDK {
 	class Globals final
 	{
 		friend void InitAndWaitForSkeet();
-	MEMBERS_PRIVATE
+		MEMBERS_PRIVATE:
 		static GlobalsInfo** GlobalsCtx;
-	MEMBERS_PUBLIC
+		MEMBERS_PUBLIC:
 		static bool			IsInGame();
-		static char*		MapName();
+		static char* MapName();
 		static float		RealTime();
 		static float		FrameTime(bool abs = false);
 		static int			FrameCount();
@@ -1394,19 +1536,19 @@ namespace SkeetSDK {
 	class Client final
 	{
 		friend void InitAndWaitForSkeet();
-	MEMBERS_PRIVATE
+		MEMBERS_PRIVATE:
 		static LogFn Logger;
 		static LogErrorFn LoggerError;
 		static void*** LoggerCtx;
 		static ScreenLogFn ScreenLogger;
-	MEMBERS_PUBLIC
+		MEMBERS_PUBLIC:
 		static void Exec(const char* cmd);
 		static void SetClanTag(const char* tag);
 		static void LogScreen(const char* text, VecCol color);
 		static FORCECALL void Log(const char* fmt, ...);
 		static FORCECALL void LogColor(VecCol Color, const char* fmt, ...);
 		static FORCECALL void LogError(const char* fmt, ...);
-	};	
+	};
 } // namespace SkeetSDK
 
 
@@ -1459,10 +1601,10 @@ namespace SkeetSDK
 			info.SizeOfImage = SizeOfImage;
 		};
 
-		sVec<int> SigFinder::ida_sig_resolver(const char* sig)
+		sVec<short> SigFinder::ida_sig_resolver(const char* sig)
 		{
 			size_t siglen = strlen(sig);
-			sVec<int> vec((siglen + 1) / 3);
+			sVec<short> vec((siglen + 1) / 3);
 			for (size_t i = 0; i < siglen; i += 3)
 			{
 				if (sig[i] == '?' && sig[i + 1] == '?')
@@ -1492,7 +1634,7 @@ namespace SkeetSDK
 
 		void* SigFinder::find(const char* sig, int offset)
 		{
-			sVec<int> pattern = ida_sig_resolver(sig);
+			sVec<short> pattern = ida_sig_resolver(sig);
 			for (size_t i = 0; i < info.SizeOfImage; i++)
 			{
 				for (size_t j = 0; j < pattern.len(); j++)
@@ -1509,7 +1651,7 @@ namespace SkeetSDK
 
 		void* SigFinder::findr32(const char* sig)
 		{
-			sVec<int> pattern = ida_sig_resolver(sig);
+			sVec<short> pattern = ida_sig_resolver(sig);
 			if (pattern[0] != 0xE8 && pattern[0] != 0xE9) return NULL;
 			for (size_t i = 0; i < info.SizeOfImage; i++)
 			{
@@ -1564,14 +1706,14 @@ namespace SkeetSDK
 		};
 
 		// DetourHook Implementation
-		CHooked* DetourHook::Hook(void* Dst, void* Src, size_t size)
+		CHooked* DetourHook::Hook(void* Dst, void* Src, size_t size, JuncType junc)
 		{
 			ptrdiff_t rel32 = (int)Src - (int)Dst - 5;
 			DWORD OldProto{ 0 };
 			unsigned char* ogbytes = (unsigned char*)malloc(size);
 			VirtualProtect(Dst, size, PAGE_EXECUTE_READWRITE, &OldProto);
 			memcpy(ogbytes, Dst, size);
-			*(BYTE*)Dst = 0xE9;
+			*(BYTE*)Dst = junc;
 			*(int*)((BYTE*)Dst + 1) = rel32;
 			if (size - 5 > 0)
 				memset((char*)Dst + 5, 0x90, size - 5);
@@ -1591,20 +1733,23 @@ namespace SkeetSDK
 	}; // Memory namepsace
 
 	// Utils Implementation
-	CFn				Utils::GetState			= nullptr;
-	PCLuas			Utils::LuaInfo			= nullptr;
-	LoadLuaFn		Utils::LoadLua			= nullptr;
-	LoadLuaFn		Utils::AfterLoad		= nullptr;
-	ThisFn			Utils::AfterTab			= nullptr;
-	DecryptFn		Utils::Decrypt			= nullptr;
-	CryptFn			Utils::Crypt			= nullptr;
-	ThisFn			Utils::InitTab			= nullptr;
-	ThisFn			Utils::Callback			= nullptr;
-	CFn				Utils::InitState		= nullptr;
-	GetConfigDataFn Utils::GetConfigData	= nullptr;
-	LoadConfigFn	Utils::LoadConfig		= nullptr;
-	HashFn			Utils::Hash				= nullptr;
-	unsigned int*	Utils::HashedCfgName	= nullptr;
+	CFn				Utils::GetLuaLState = nullptr;
+	PCLuas			Utils::LuaLoader_State = nullptr;
+	LoadLuaFn		Utils::LoadLua = nullptr;
+	BTFn			Utils::IsLuaLoaded = nullptr;
+	ThisFn			Utils::AfterTab = nullptr;
+	ThisFn			Utils::AfterTabCfg = nullptr;
+	ThisFn			Utils::AfterTabRage = nullptr;
+	DecryptFn		Utils::Decrypt = nullptr;
+	CryptFn			Utils::Crypt = nullptr;
+	ThisFn			Utils::InitTab = nullptr;
+	ThisFn			Utils::Callback = nullptr;
+	CFn				Utils::InitState = nullptr;
+	GetConfigDataFn Utils::GetConfigData = nullptr;
+	LoadConfigFn	Utils::LoadConfig = nullptr;
+	HashFn			Utils::Hash = nullptr;
+	Hashi8Fn		Utils::Hashi8 = nullptr;
+	unsigned int* Utils::HashedCfgName = nullptr;
 
 
 	unsigned int Utils::ChildsCount(PCTab tab)
@@ -1619,12 +1764,12 @@ namespace SkeetSDK
 
 	void Utils::InitConfig()
 	{
-		InitTab(Menu->Tabs[CONFIG]);
+		Menu->Tabs[CONFIG]->OnOpen();
 	};
 
 	PCLua Utils::GetLuaInfo()
 	{
-		return *LuaInfo;
+		return *LuaLoader_State;
 	};
 
 	void Utils::LoadCfg(int index)
@@ -1639,7 +1784,12 @@ namespace SkeetSDK
 		skeetvec<unsigned char> cfgchunk;
 		GetConfigData(cfgname, &cfgchunk);
 		if (!cfgchunk.empty())
+		{
+			*HashedCfgName = Hashi8(cfgname);
 			LoadConfig(Menu, cfgchunk._Unchecked_begin(), cfgchunk.size());
+			AfterTabCfg(UI::GetTab(CONFIG));
+			AfterTabRage(UI::GetTab(RAGE));
+		};
 	};
 
 	const wchar_t* Utils::CurrentConfig()
@@ -1666,7 +1816,7 @@ namespace SkeetSDK
 
 	int Utils::LuaCount()
 	{
-		return ((int)Menu->Tabs[CONFIG]->ChunkEnd - (int)Menu->Tabs[CONFIG]->Chunk) / sizeof(LuaChunk);
+		return ((int)Menu->Tabs[CONFIG]->ChunkEnd - (int)Menu->Tabs[CONFIG]->Chunk) / sizeof(LuaInfo);
 	};
 
 	wchar_t* Utils::LuaName(int index)
@@ -1678,45 +1828,45 @@ namespace SkeetSDK
 
 	bool Utils::LoadScript(int index)
 	{
-		wchar_t* name = LuaName(index);
-		if (name == NULL) return false;
+		if (index >= LuaCount()) return false;
+
 		PCTab config = UI::GetTab(CONFIG);
-		PListbox scripts = UI::GetChild(CONFIG, 1)->Elements[3]->GetAs<Listbox>();
-		LuaChunk* chunk = Memory::GetChunkAs<LuaChunk*>(config);
-		bool result = LoadLua(name);
-		if (result)
-		{
-			if (GetState() != nullptr)
-			{
-				AfterLoad(chunk[index].Name._Unchecked_begin());
-				scripts->Info.Items[index].Flags |= LUALOADED_FLAG;
-			};
-		};
+		ListBoxVar* var = &UI::GetChild(CONFIG, 1)->Elements[3]->GetAs<Listbox>()->Info.Items[index];
+		LuaInfo* chunk = &Memory::GetChunkAs<LuaInfo*>(config)[index];
+
+		bool result = LoadLua(chunk->Name.data());
+		if (result && GetLuaState() != nullptr && IsLuaLoaded(&chunk->Name))
+			var->Index |= LUALOADED_FLAG;
+
 		AfterTab(config);
 		return result;
 	};
 
-	bool Utils::LoadScript(const wchar_t* name)
+	bool Utils::LoadScript(const wchar_t* name, bool set_onload)
 	{
 		PCTab config = UI::GetTab(CONFIG);
 		PListbox scripts = UI::GetChild(CONFIG, 1)->Elements[3]->GetAs<Listbox>();
-		LuaChunk* chunk = Memory::GetChunkAs<LuaChunk*>(config);
-		bool result = LoadLua(name);
-		if (result)
+		LuaInfo* chunk = Memory::GetChunkAs<LuaInfo*>(config);
+		ListBoxVar* var = nullptr;
+		for (size_t i = 0; i < LuaCount(); i++)
 		{
-			if (GetState() != nullptr)
+			if (!wcscmp(chunk[i].Name.data(), name))
 			{
-				for (size_t i = 0; i < LuaCount(); i++)
-				{
-					if (!wcscmp(chunk[i].Name._Unchecked_begin(), name))
-					{
-						AfterLoad(chunk[i].Name._Unchecked_begin());
-						scripts->Info.Items[i].Flags |= LUALOADED_FLAG;
-						break;
-					};
-				};
+				chunk = &chunk[i];
+				var = &scripts->Info.Items[i];
+				break;
 			};
 		};
+
+		if (var == nullptr) return false;
+
+		bool result = LoadLua(chunk->Name.data());
+		if (result && GetLuaState() != nullptr && IsLuaLoaded(&chunk->Name))
+		{
+			var->Index |= LUALOADED_FLAG;
+			chunk->OnStartup = set_onload;
+			config->Childs[1]->Elements[5]->GetAs<Checkbox>()->OnValueSet();
+		}
 		AfterTab(config);
 		return result;
 	};
@@ -1739,12 +1889,12 @@ namespace SkeetSDK
 
 	void* Utils::GetLuaState()
 	{
-		return GetState();
+		return reinterpret_cast<SLua*>(GetLuaLState())->LuaState;
 	};
 
 	void Utils::ForEach(PChild child, void(*func)(PElement), UiType T)
 	{
-		
+
 		for (auto& element : child->Elements)
 		{
 			if (T == UiNone || element->GetAs<Header<void>>()->Type == T)
@@ -1755,50 +1905,51 @@ namespace SkeetSDK
 	};
 
 	// UI Implementation
-	ThisIntFn		UI::TabSwitch		= nullptr;
-	ThisIntFn		UI::SetList			= nullptr;
-	ThisFn			UI::ChildLayout		= nullptr;
-	ThisFn			UI::KeyInit			= nullptr;
-	SetKeyFn		UI::SetKey			= nullptr;
-	SetCheckFn		UI::SetCheck		= nullptr;
-	HideUiFn		UI::HideUi			= nullptr;
-	F2PFn			UI::DeleteUi		= nullptr;
-	T2PFn			UI::InsertTab		= nullptr;
-	T2PFn			UI::InsertChildr	= nullptr;
-	InsertFn		UI::InsertElem		= nullptr;
-	AddLabelFn		UI::AddLabel		= nullptr;
-	AddButtonFn		UI::AddButton		= nullptr;
-	LConFn			UI::LabelCon		= nullptr;
-	BConFn			UI::ButtonCon		= nullptr;
-	TBConFn			UI::TextboxCon		= nullptr;
-	TCConFn			UI::CheckboxCon		= nullptr;
-	SConFn			UI::SliderCon		= nullptr;
-	HKConFn			UI::HotkeyCon		= nullptr;
-	CPConFn			UI::CPickerCon		= nullptr;
-	CBConFn			UI::ComboboxCon		= nullptr;
-	MConFn			UI::MultiCon		= nullptr;
-	LBConFn			UI::ListboxCon		= nullptr;
-	CHConFn			UI::ChildCon		= nullptr;
-	TCConFn			UI::TabCon			= nullptr;
-	GetTBoxTextFn	UI::GetTBoxText		= nullptr;
+	ThisIntFn		UI::TabSwitch = nullptr;
+	ThisIntFn		UI::SetList = nullptr;
+	ThisFn			UI::ChildLayout = nullptr;
+	ThisFn			UI::KeyInit = nullptr;
+	SetKeyFn		UI::SetKey = nullptr;
+	SetCheckFn		UI::SetCheck = nullptr;
+	HideUiFn		UI::HideUi = nullptr;
+	F2PFn			UI::DeleteUi = nullptr;
+	T2PFn			UI::InsertTab = nullptr;
+	T2PFn			UI::InsertChildr = nullptr;
+	InsertFn		UI::InsertElem = nullptr;
+	AddLabelFn		UI::AddLabel = nullptr;
+	AddButtonFn		UI::AddButton = nullptr;
+	LConFn			UI::LabelCon = nullptr;
+	BConFn			UI::ButtonCon = nullptr;
+	TBConFn			UI::TextboxCon = nullptr;
+	TCConFn			UI::CheckboxCon = nullptr;
+	SConFn			UI::SliderCon = nullptr;
+	HKConFn			UI::HotkeyCon = nullptr;
+	CPConFn			UI::CPickerCon = nullptr;
+	CBConFn			UI::ComboboxCon = nullptr;
+	MConFn			UI::MultiCon = nullptr;
+	LBConFn			UI::ListboxCon = nullptr;
+	CHConFn			UI::ChildCon = nullptr;
+	TCConFn			UI::TabCon = nullptr;
+	GetTBoxTextFn	UI::GetTBoxText = nullptr;
 
 	void UI::ResetLayout()
 	{
-		Button* b = (Button*)GetByName(GetChild(MISC, 2), L"Reset menu layout");
+		Button* b = GetChild(MISC, 2)->Elements[11]->GetAs<Button>();
 		b->Calls[0].function(Menu, b);
 	};
 
-	void UI::SetTab(Tab tab)
+	void UI::SetTab(uint32_t idx)
 	{
-		TabSwitch(Menu, tab);
+		if (Menu->Tabs.size() > idx)
+			TabSwitch(Menu, idx);
 	};
 
-	PCTab UI::GetTab(Tab tab)
+	PCTab UI::GetTab(ETab tab)
 	{
 		return Menu->Tabs[tab];
 	};
 
-	Tab UI::GetActiveTab()
+	ETab UI::GetActiveTab()
 	{
 		return Menu->CurrentTab;
 	}
@@ -1816,6 +1967,13 @@ namespace SkeetSDK
 	VecCol UI::GetMenuCol()
 	{
 		return GetChild(MISC, 2)->Elements[3]->GetAs<CPicker>()->Value[0];
+	};
+
+	void UI::SetMenuCol(VecCol col)
+	{
+		PCPicker menucol = GetChild(MISC, 2)->Elements[3]->GetAs<CPicker>();
+		*menucol->Value = col;
+		menucol->OnValueSet();
 	};
 
 	void UI::SetInput(PElement elemen, bool val)
@@ -1870,10 +2028,10 @@ namespace SkeetSDK
 		Utils::Callback(slider);
 	};
 
-	void UI::SetCombobox(PCombobox combobox, int value)
+	void UI::SetCombobox(PCombobox combobox, uint32_t value)
 	{
 		combobox->Value[0] = value;
-		Utils::Callback(combobox);
+		combobox->OnValueSet();
 	};
 
 	void UI::SetListbox(PListbox listbox, int value)
@@ -1929,7 +2087,7 @@ namespace SkeetSDK
 		return NULL;
 	};
 
-	PChild UI::GetChild(Tab tab, size_t index)
+	PChild UI::GetChild(ETab tab, size_t index)
 	{
 		PCTab tabPtr = GetTab(tab);
 		if (index < 0 || index >= Utils::ChildsCount(tabPtr)) return NULL;
@@ -1939,13 +2097,13 @@ namespace SkeetSDK
 	void UI::InsertElement(PChild child, void* element)
 	{
 		InsertElem(child, 0, element);
-		ChildLayout(child);
+		child->CalculateLayout();
 	};
 
 	PLabel UI::CreateLabel(PChild child, const wchar_t* name)
 	{
 		PLabel ptr = (PLabel)AddLabel(child, 0, name);
-		ChildLayout(child);
+		child->CalculateLayout();
 		return ptr;
 	};
 
@@ -1995,7 +2153,7 @@ namespace SkeetSDK
 	PButton UI::CreateButton(PChild child, const wchar_t* name, F2PFn function, void* ecx)
 	{
 		PButton ptr = (PButton)AddButton(child, NULL, name, ecx, function);
-		ChildLayout(child);
+		child->CalculateLayout();
 		return ptr;
 	};
 
@@ -2108,16 +2266,16 @@ namespace SkeetSDK
 	};
 
 #ifdef SDK_RENDERER_IMP
-	Memory::CHooked*	Renderer::RenderHook		= nullptr;
-	Memory::CHooked*	Renderer::MenuRenderHook	= nullptr;
-	Memory::CHooked*	Renderer::FinalRenderHook	= nullptr;
-	ReadFileFn			Renderer::ExReadFile		= nullptr;
-	LoadTextureFn		Renderer::LoadTexture		= nullptr;
-	LoadSvgFormFileFn	Renderer::LoadSvgFromFile	= nullptr;
-	RenderIndicatorFn	Renderer::RenderIndicator	= nullptr;
-	WorldToScreenFn		Renderer::WorldToScreen		= nullptr;
-	RenderBlurFn		Renderer::RenderBlur		= nullptr;
-	void*				Renderer::RenderBlurCtx		= nullptr;
+	Memory::CHooked* Renderer::RenderHook = nullptr;
+	Memory::CHooked* Renderer::MenuRenderHook = nullptr;
+	Memory::CHooked* Renderer::FinalRenderHook = nullptr;
+	ReadFileFn			Renderer::ExReadFile = nullptr;
+	LoadTextureFn		Renderer::LoadTexture = nullptr;
+	LoadSvgFormFileFn	Renderer::LoadSvgFromFile = nullptr;
+	RenderIndicatorFn	Renderer::RenderIndicator = nullptr;
+	WorldToScreenFn		Renderer::WorldToScreen = nullptr;
+	RenderBlurFn		Renderer::RenderBlur = nullptr;
+	void* Renderer::RenderBlurCtx = nullptr;
 	sVec<RenderEventListenerFn> Renderer::RenderEvents(40);
 	sVec<RenderEventListenerFn> Renderer::MenuEvents(40);
 	sVec<RenderEventListenerFn> Renderer::FinalEvents(40);
@@ -2164,15 +2322,15 @@ namespace SkeetSDK
 	void Renderer::Init()
 	{
 		if (RenderHook != NULL) return;
-		LoadTexture		= (LoadTextureFn)Memory::CheatChunk.findr32("E8 ?? ?? ?? ?? 84 C0 74 76 8B 4C 24 14");
+		LoadTexture = (LoadTextureFn)Memory::CheatChunk.findr32("E8 ?? ?? ?? ?? 84 C0 74 76 8B 4C 24 14");
 		LoadSvgFromFile = (LoadSvgFormFileFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 83 EC 28 56 83 CE FF 83 3D ?? ?? ?? ?? 00 57 8B FA");
 		RenderIndicator = (RenderIndicatorFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 81 EC 48 40");
-		WorldToScreen	= (WorldToScreenFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 F3 0F 10 71");
-		RenderBlur		= (RenderBlurFn)Memory::CheatChunk.find("56 8D 71 28 8B 4E 04 8B C1 2B 06 C1 F8 03 3D 00 20 00 00");
-		RenderBlurCtx	= **(void***)Memory::CheatChunk.find("8B 0D ?? ?? ?? ?? 83 C4 20 85 C9 74 09 50 55 53 57 E8", 0x2);
-		ExReadFile		= (ReadFileFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 83 EC 14 53 56 57 8B F9 B8");
-		RenderHook		= Memory::DetourHook::Hook(Memory::CheatChunk.find("55 8B EC 83 E4 F8 E8 ?? ?? ?? ?? 83 38 00 74 36 89 0D"), RenderListener, 6);
-		MenuRenderHook	= Memory::DetourHook::Hook(Memory::CheatChunk.find("56 FF 74 24 08 8B F1 E8"), MenuRenderListener);
+		WorldToScreen = (WorldToScreenFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 F3 0F 10 71");
+		RenderBlur = (RenderBlurFn)Memory::CheatChunk.find("56 8D 71 28 8B 4E 04 8B C1 2B 06 C1 F8 03 3D 00 20 00 00");
+		RenderBlurCtx = **(void***)Memory::CheatChunk.find("8B 0D ?? ?? ?? ?? 83 C4 20 85 C9 74 09 50 55 53 57 E8", 0x2);
+		ExReadFile = (ReadFileFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 83 EC 14 53 56 57 8B F9 B8");
+		RenderHook = Memory::DetourHook::Hook(Memory::CheatChunk.find("55 8B EC 83 E4 F8 E8 ?? ?? ?? ?? 83 38 00 74 36 89 0D"), RenderListener, 6);
+		MenuRenderHook = Memory::DetourHook::Hook(Memory::CheatChunk.find("56 FF 74 24 08 8B F1 E8"), MenuRenderListener);
 		FinalRenderHook = Memory::DetourHook::Hook(Memory::CheatChunk.find("53 56 57 8B F9 8B 57 08 8D 82 A8 00 00 00 F7 DA 1B D2 23 D0 52"), RenderFinalListener); // this is also fn2 IRenderer
 	};
 
@@ -2351,7 +2509,7 @@ namespace SkeetSDK
 		if (type == TEXTURE_RGBA)
 		{
 			if (width * heigth * 4 != size) return;
-			rawContent.assign(data, data+size);
+			rawContent.assign(data, data + size);
 			pxielSize = width * heigth;
 		}
 		else
@@ -2374,10 +2532,10 @@ namespace SkeetSDK
 	};
 #endif // SDK_RENDERER_IMP
 #if defined(SDK_GLOBALS_IMP) || defined(SDK_CLIENT_IMP)
-	void**** CEngine::EngineCtx				= nullptr;
-	CommandsInfo** CEngine::CommandsCtx		= nullptr;
-	SetClanTagFn CEngine::SetTag			= nullptr;
-	unsigned int* CEngine::PredComm			= nullptr;
+	void**** CEngine::EngineCtx = nullptr;
+	CommandsInfo** CEngine::CommandsCtx = nullptr;
+	SetClanTagFn CEngine::SetTag = nullptr;
+	unsigned int* CEngine::PredComm = nullptr;
 
 	bool CEngine::IsInGame()
 	{
@@ -2481,10 +2639,10 @@ namespace SkeetSDK
 #endif // SDK_GLOBALS_IMP
 
 #ifdef SDK_CLIENT_IMP
-	LogFn		Client::Logger			= nullptr;
-	LogErrorFn	Client::LoggerError		= nullptr;
-	void***		Client::LoggerCtx		= nullptr;
-	ScreenLogFn	Client::ScreenLogger	= nullptr;
+	LogFn		Client::Logger = nullptr;
+	LogErrorFn	Client::LoggerError = nullptr;
+	void*** Client::LoggerCtx = nullptr;
+	ScreenLogFn	Client::ScreenLogger = nullptr;
 
 	void Client::Exec(const char* cmd)
 	{
@@ -2532,9 +2690,10 @@ namespace SkeetSDK
 #endif // SDK_CLIENT_IMP
 	void WaitForTabs()
 	{
-		while (Menu->Tabs._Unchecked_begin() == nullptr || Menu->Tabs[LUA] == nullptr || Menu->Tabs[LUA]->Childs[1] == nullptr) Sleep(50);
+		while (Menu->Tabs._Unchecked_begin() == nullptr || Menu->Tabs[LUA] == nullptr || Menu->Tabs[LUA]->Childs[1] == nullptr) Sleep(0);
 	};
 
+#define DECLASSIG(left, right) left = reinterpret_cast<decltype(left)>(right) 
 	void InitAndWaitForSkeet()
 	{
 		using namespace Memory;
@@ -2548,66 +2707,71 @@ namespace SkeetSDK
 				if (mbi.State == MEM_COMMIT)
 					loaded = true;
 				else
-					Sleep(100);
+					Sleep(0);
 			} while (!loaded);
 		};
 
 		do
 		{
-			Allocator = (AllocatorFn)CheatChunk.find("56 8B F1 33 C0 85");
-			Sleep(10);
+			DECLASSIG(Allocator, CheatChunk.find("56 8B F1 33 C0 85"));
+			Sleep(0);
 		} while (Allocator == nullptr);
 
-		Deallocator = (ThisFn)CheatChunk.find("8B 41 08 2B 01 83 F8");
-		_RawDealloc = (ThisFn)CheatChunk.find("85 C9 74 17 8D 41 F0 2B 40 08 50 64 A1 30 00 00 00 6A 00 FF 70 18 E8 ?? ?? ?? ?? C3");
+		DECLASSIG(VecDeallocator, CheatChunk.find("8B 41 08 2B 01 83 F8"));
+		DECLASSIG(Deallocator, CheatChunk.find("85 C9 74 17 8D 41 F0 2B 40 08 50 64 A1 30 00 00 00 6A 00 FF 70 18 E8 ?? ?? ?? ?? C3"));
+
 		SCLASS = *(SkeetClass_**)CheatChunk.find("A1 ?? ?? ?? ?? 83 64 24 04 00 89 54 24 18 89 44 24 10 53 56", 0x1);
 		Menu = SCLASS->Menu;
 		do
 		{
 			Menu = SCLASS->Menu;
-			Sleep(10);
+			Sleep(0);
 		} while (!Menu);
 
-		Utils::GetState = (CFn)CheatChunk.find("A1 ?? ?? ?? ?? 85 C0 75 01 C3 83 C0 44 C3");
-		Utils::LuaInfo = *(PCLuas*)CheatChunk.find("A1 ?? ?? ?? ?? 85 C0 75 01 C3 83 C0 44 C3", 0x1);
-		Utils::LoadLua = (LoadLuaFn)CheatChunk.find("83 EC 4C 53 55 33");
-		Utils::AfterLoad = (LoadLuaFn)Memory::CheatChunk.find("51 8B D1 56 8B");
-		Utils::AfterTab = (ThisFn)Memory::CheatChunk.find("55 8B EC 83 E4 F8 81 EC 04 01 00 00 80");
-		Utils::Decrypt = (DecryptFn)CheatChunk.find("51 51 55 56 8B C2");
-		Utils::Crypt = (CryptFn)CheatChunk.find("51 53 8B 5C 24 0C 55 56 8B E9");
-		Utils::InitTab = (ThisFn)CheatChunk.find("55 8B EC 83 E4 F8 83 EC 30 53 8B");
-		Utils::Callback = (ThisFn)CheatChunk.find("53 56 57 8B F9 8B 5F 44");
-		Utils::InitState = (CFn)CheatChunk.find("55 8B EC 83 EC 2C 56 57 E8");
-		Utils::GetConfigData = (GetConfigDataFn)CheatChunk.find("55 8B EC 83 EC 18 56 57 89");
-		Utils::LoadConfig = (LoadConfigFn)CheatChunk.find("55 8B EC 83 E4 F8 83 EC 40 56 57 8B FA");
-		Utils::Hash = (HashFn)CheatChunk.find("56 8B F1 BA C5");
+		Utils::LuaLoader_State = *(PCLuas*)CheatChunk.find("A1 ?? ?? ?? ?? 85 C0 75 01 C3 83 C0 44 C3", 0x1);
 		Utils::HashedCfgName = *(unsigned int**)CheatChunk.find("A3 ?? ?? ?? ?? 8B CC 8D 44 24 30 89 7C 24 10", 0x1);
-		UI::TabSwitch = (ThisIntFn)CheatChunk.find("56 8B F1 57 8B 7C 24 0C 8B 4E 64");
-		UI::SetList = (ThisIntFn)CheatChunk.find("8B 81 94 00 00 00 2B");
-		UI::ChildLayout = (ThisFn)CheatChunk.find("55 8B EC 83 E4 F8 83 EC 10 53 55");
-		UI::KeyInit = (ThisFn)CheatChunk.find("8B D1 B9 ?? ?? ?? ?? E9");
-		UI::SetKey = (SetKeyFn)CheatChunk.find("81 EC 08 02 00 00 53");
-		UI::SetCheck = (SetCheckFn)CheatChunk.find("8B 41 5C 53 85");
-		UI::HideUi = (HideUiFn)CheatChunk.find("8A 44 24 04 38");
-		UI::DeleteUi = (F2PFn)CheatChunk.find("83 EC 0C A1 24");
-		UI::InsertTab = (T2PFn)CheatChunk.find("8B 41 58 83 C1");
-		UI::InsertChildr = (T2PFn)CheatChunk.find("55 8B EC 8B 45 08 56 8B F1 89");
-		UI::InsertElem = (InsertFn)CheatChunk.find("56 57 8B F9 8B 4F 10");
-		UI::AddLabel = (AddLabelFn)CheatChunk.find("55 8B EC 56 57 8B F9 6A");
-		UI::AddButton = (AddButtonFn)CheatChunk.find("55 8B EC 83 E4 F8 51 51 56 57 8B F9 6A");
-		UI::LabelCon = (LConFn)CheatChunk.find("56 6A 00 6A 08");
-		UI::ButtonCon = (BConFn)CheatChunk.find("55 8B EC 83 EC 0C 56 6A");
-		UI::TextboxCon = (TBConFn)CheatChunk.find("56 57 33 FF 8B F1 57 6A 0A");
-		UI::CheckboxCon = (TCConFn)CheatChunk.find("56 FF 74 24 10 8B F1 6A");
-		UI::SliderCon = (SConFn)CheatChunk.find("55 8B EC 53 56 FF");
-		UI::HotkeyCon = (HKConFn)CheatChunk.find("53 8B 5C 24 0C 56 53");
-		UI::CPickerCon = (CPConFn)CheatChunk.find("53 56 57 FF 74 24 14 8B D9 6A");
-		UI::ComboboxCon = (CBConFn)CheatChunk.find("56 57 FF 74 24 14 8B F1 6A 04");
-		UI::MultiCon = (MConFn)CheatChunk.find("56 57 FF 74 24 14 8B F1 6A 0D");
-		UI::ListboxCon = (LBConFn)CheatChunk.find("55 8B EC 53 56 57 FF 75 18");
-		UI::ChildCon = (CHConFn)CheatChunk.find("55 8B EC 56 FF 75 18");
-		UI::TabCon = (TCConFn)CheatChunk.find("56 57 33 FF 8B F1 57 6A 01");
-		UI::GetTBoxText = (GetTBoxTextFn)CheatChunk.find("53 55 8B E9 8B 5D 04 85 DB 74 4B EB 02 F3 90 33 C0 40 87 45 00 85 C0 75 F4 8B 5D 04 83 FB 41");
+
+		DECLASSIG(Utils::GetLuaLState, CheatChunk.find("A1 ?? ?? ?? ?? 85 C0 75 01 C3 83 C0 44 C3"));
+		DECLASSIG(Utils::LoadLua, CheatChunk.find("83 EC 4C 53 55 33"));
+		DECLASSIG(Utils::IsLuaLoaded, Memory::CheatChunk.find("51 8B D1 56 8B"));
+		DECLASSIG(Utils::AfterTab, Memory::CheatChunk.find("55 8B EC 83 E4 F8 81 EC 04 01 00 00 80"));
+		DECLASSIG(Utils::AfterTabCfg, Memory::CheatChunk.find("51 53 55 8B A9"));
+		DECLASSIG(Utils::AfterTabRage, Memory::CheatChunk.find("55 8B EC 83 E4 ?? 83 EC ?? 56 8B F1 57 8B 86"));
+		DECLASSIG(Utils::Decrypt, CheatChunk.find("51 51 55 56 8B C2"));
+		DECLASSIG(Utils::Crypt, CheatChunk.find("51 53 8B 5C 24 0C 55 56 8B E9"));
+		DECLASSIG(Utils::InitTab, CheatChunk.find("55 8B EC 83 E4 F8 83 EC 30 53 8B"));
+		DECLASSIG(Utils::Callback, CheatChunk.find("53 56 57 8B F9 8B 5F 44"));
+		DECLASSIG(Utils::InitState, CheatChunk.find("55 8B EC 83 EC 2C 56 57 E8"));
+		DECLASSIG(Utils::GetConfigData, CheatChunk.find("55 8B EC 83 EC 18 56 57 89"));
+		DECLASSIG(Utils::LoadConfig, CheatChunk.find("55 8B EC 83 E4 F8 83 EC 40 56 57 8B FA"));
+		DECLASSIG(Utils::Hash, CheatChunk.find("56 8B F1 BA C5"));
+		DECLASSIG(Utils::Hashi8, CheatChunk.find("BA ?? ?? ?? ?? 85 C9"));
+		DECLASSIG(UI::TabSwitch, CheatChunk.find("56 8B F1 57 8B 7C 24 0C 8B 4E 64"));
+		DECLASSIG(UI::SetList, CheatChunk.find("8B 81 94 00 00 00 2B"));
+		DECLASSIG(UI::ChildLayout, CheatChunk.find("55 8B EC 83 E4 F8 83 EC 10 53 55"));
+		DECLASSIG(UI::KeyInit, CheatChunk.find("8B D1 B9 ?? ?? ?? ?? E9"));
+		DECLASSIG(UI::SetKey, CheatChunk.find("81 EC 08 02 00 00 53"));
+		DECLASSIG(UI::SetCheck, CheatChunk.find("8B 41 5C 53 85"));
+		DECLASSIG(UI::HideUi, CheatChunk.find("8A 44 24 04 38"));
+		DECLASSIG(UI::DeleteUi, CheatChunk.find("83 EC 0C A1 24"));
+		DECLASSIG(UI::InsertTab, CheatChunk.find("8B 41 58 83 C1"));
+		DECLASSIG(UI::InsertChildr, CheatChunk.find("55 8B EC 8B 45 08 56 8B F1 89"));
+		DECLASSIG(UI::InsertElem, CheatChunk.find("56 57 8B F9 8B 4F 10"));
+		DECLASSIG(UI::AddLabel, CheatChunk.find("55 8B EC 56 57 8B F9 6A"));
+		DECLASSIG(UI::AddButton, CheatChunk.find("55 8B EC 83 E4 F8 51 51 56 57 8B F9 6A"));
+		DECLASSIG(UI::LabelCon, CheatChunk.find("56 6A 00 6A 08"));
+		DECLASSIG(UI::ButtonCon, CheatChunk.find("55 8B EC 83 EC 0C 56 6A"));
+		DECLASSIG(UI::TextboxCon, CheatChunk.find("56 57 33 FF 8B F1 57 6A 0A"));
+		DECLASSIG(UI::CheckboxCon, CheatChunk.find("56 FF 74 24 10 8B F1 6A"));
+		DECLASSIG(UI::SliderCon, CheatChunk.find("55 8B EC 53 56 FF"));
+		DECLASSIG(UI::HotkeyCon, CheatChunk.find("53 8B 5C 24 0C 56 53"));
+		DECLASSIG(UI::CPickerCon, CheatChunk.find("53 56 57 FF 74 24 14 8B D9 6A"));
+		DECLASSIG(UI::ComboboxCon, CheatChunk.find("56 57 FF 74 24 14 8B F1 6A 04"));
+		DECLASSIG(UI::MultiCon, CheatChunk.find("56 57 FF 74 24 14 8B F1 6A 0D"));
+		DECLASSIG(UI::ListboxCon, CheatChunk.find("55 8B EC 53 56 57 FF 75 18"));
+		DECLASSIG(UI::ChildCon, CheatChunk.find("55 8B EC 56 FF 75 18"));
+		DECLASSIG(UI::TabCon, CheatChunk.find("56 57 33 FF 8B F1 57 6A 01"));
+		DECLASSIG(UI::GetTBoxText, CheatChunk.find("53 55 8B E9 8B 5D 04 85 DB 74 4B EB 02 F3 90 33 C0 40 87 45 00 85 C0 75 F4 8B 5D 04 83 FB 41"));
 #if defined(SDK_GLOBALS_IMP) || defined(SDK_CLIENT_IMP)
 		CEngine::EngineCtx = *(void*****)CheatChunk.find("8B 0D ?? ?? ?? ?? 8D 94 24 B0 02 00 00 52 57", 0x2);
 		CEngine::CommandsCtx = *(CommandsInfo***)CheatChunk.find("8B 3D ?? ?? ?? ?? 8B 48 04 3B 0F 7E 07", 0x2);
@@ -2618,11 +2782,13 @@ namespace SkeetSDK
 		Globals::GlobalsCtx = *(GlobalsInfo***)CheatChunk.find("8B 0D ?? ?? ?? ?? 8B 54 24 20 D8 71 20", 0x2);
 #endif
 #ifdef SDK_CLIENT_IMP
-		Client::Logger = (LogFn)CheatChunk.find("55 8B EC 83 E4 F8 83 EC 20 80");
 		Client::LoggerError = (LogErrorFn)CheatChunk.find("55 8B EC 83 E4 F8 81 EC 40 20");
 		Client::LoggerCtx = **(void*****)CheatChunk.find("A1 ?? ?? ?? ?? 83 C4 0C 8B 08 56 68 ?? ?? ?? ?? 50 FF 51 68", 0x1);
-		Client::ScreenLogger = (ScreenLogFn)CheatChunk.find("56 8B F1 8B 0D CC");
+
+		DECLASSIG(Client::Logger, CheatChunk.find("55 8B EC 83 E4 F8 83 EC 20 80"));
+		DECLASSIG(Client::ScreenLogger, CheatChunk.find("56 8B F1 8B 0D CC"));
 #endif
 	};
+#undef DECLASSIG
 };
 #endif // SKEET_H
