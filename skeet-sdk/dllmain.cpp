@@ -9,9 +9,7 @@
 #include <cmath>
 
 static void UnSetVisibles();
-static void LoadConfig();
 static void SetMenuKey(int KEY);
-static void PrintAllLuas();
 static void Watermark();
 static void __vectorcall MMLerp(float& a, float min, float max, float& t, float speed);
 
@@ -19,9 +17,10 @@ using namespace SkeetSDK;
 
 DWORD WINAPI MainThread(LPVOID lpParam)
 {
+    AllocConsole();
+    freopen("CONOUT$", "w", stdout);
     InitAndWaitForSkeet();
     UnSetVisibles();
-    LoadConfig();
     SetMenuKey(VK_INSERT);
     Utils::AllowUnsafe(true);
     Watermark();
@@ -43,29 +42,21 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 //----------------------------------------------------------------------------------------------------------//
 static void UnSetVisibles()
 {
-    Utils::ForEach(UI::GetChild(MISC, 2), [](PElement element) {
-        UI::SetVisible(element, true);
-        });
+    for (CTab* tab : Menu->Tabs)
+    {
+        for (Child* child : tab->Childs)
+        {
+            Utils::ForEach(child, [](PElement element) {
+                UI::SetVisible(element, true);
+                });
+        }
+    }
 }
 
-static void LoadConfig()
-{
-    Utils::LoadCfg();
-}
 
 static void SetMenuKey(int KEY)
 {
     UI::SetHotkey(UI::GetElement<Hotkey>(UI::GetChild(MISC, 2), 1), KEY);
-}
-
-static void PrintAllLuas()
-{
-    Utils::InitConfig();
-    int Luacount = Utils::LuaCount();
-    for (int i = 0; i < Luacount; i++)
-    {
-        Client::LogColor({ 255, 255, 255, 255 }, "Lua #%d: %ls\n", i, Utils::LuaName(i));
-    }
 }
 
 
