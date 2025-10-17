@@ -6,6 +6,9 @@
 #include <string_view>
 #include <memory>
 
+#pragma push_macro("max")
+#undef max;
+
 #define SIZEASSERT(_struct, _size) static_assert(sizeof(_struct) == _size, #_struct " should be " #_size " bytes long");
 
 #ifdef INCLUDE_NLOHMANN_JSON_HPP_
@@ -1185,13 +1188,13 @@ namespace SkeetSDK {
 	};
 
 	//0x20 Struct for lua listbox chunk in Config tab
-	typedef struct
+	typedef struct LuaInfo
 	{
 		uint64_t			TimeStamp;	// 0x0 TimeStamp of last modification
 		int					OnStartup;	// 0x8
 		skeetvec<wchar_t>	Name;		// 0xC
 		char				pad2[0x8];
-	} LuaInfo;
+	};
 
 	struct CloudLua
 	{
@@ -2064,12 +2067,12 @@ namespace SkeetSDK
 
 	const wchar_t* LuaSystem::LuaName(Hasher::hash_t hash)
 	{
-		skeetvec<LuaInfo> luas(Menu->TabsArr[CONFIG]->Chunk.begin(), Menu->TabsArr[CONFIG]->Chunk.end());
+		LuaInfo* luas = Memory::GetChunkAs<LuaInfo*>(Menu->Tabs[CONFIG]);
 
-		for (auto& lua : luas)
+		for (int i = 0; i < LuaSystem::LuaCount(); i++)
 		{
-			if (Hasher::FNV1a(lua.Name.data()) == hash)
-				return lua.Name.data();
+			if (Hasher::FNV1a(luas[i].Name.data()) == hash)
+				return luas[i].Name.data();
 		};
 
 		return nullptr;
@@ -3048,5 +3051,6 @@ namespace SkeetSDK
 #endif
 	};
 #undef DECLASSIG
+#pragma pop_macro("max")
 };
 #endif // SKEET_H
